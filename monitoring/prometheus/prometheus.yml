@@ -1,0 +1,35 @@
+# prometheus.yml
+# EDIT: Replace PRIMARY_EC2_IP and SECONDARY_EC2_IP with your actual EC2 IPs
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+
+  # ── Your Node.js App ────────────────────────────────────────────────────────
+  - job_name: 'aegis-app-primary'
+    static_configs:
+      - targets: ['PRIMARY_EC2_IP:3000']   # EDIT: e.g. 54.1.2.3:3000
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'aegis-app-secondary'
+    static_configs:
+      - targets: ['SECONDARY_EC2_IP:3000']  # EDIT: e.g. 13.5.6.7:3000
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # ── Node Exporter (system metrics) ─────────────────────────────────────────
+  - job_name: 'node-exporter-primary'
+    static_configs:
+      - targets: ['PRIMARY_EC2_IP:9100']   # EDIT
+
+  - job_name: 'node-exporter-secondary'
+    static_configs:
+      - targets: ['SECONDARY_EC2_IP:9100']  # EDIT
+
+  # ── Prometheus itself ────────────────────────────────────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

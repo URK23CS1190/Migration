@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — Infrastructure Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:       #050a0f;
+  --surface:  #0c1620;
+  --surface2: #111b27;
+  --border:   rgba(56,189,248,0.1);
+  --blue:     #38bdf8;
+  --blue-dim: rgba(56,189,248,0.12);
+  --green:    #34d399;
+  --red:      #f87171;
+  --amber:    #fbbf24;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --font-h:   'Syne', sans-serif;
+  --font-b:   'DM Sans', sans-serif;
+  --font-m:   'DM Mono', monospace;
+}
+
+body { background: var(--bg); font-family: var(--font-b); color: var(--text); min-height: 100vh; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── Layout ── */
+.app { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+
+/* ── Top Bar ── */
+.topbar {
+  grid-column: 1/-1;
+  height: 60px;
+  background: rgba(12,22,32,0.95);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  backdrop-filter: blur(20px);
+  position: sticky; top: 0; z-index: 100;
+  animation: slideDown 0.5s ease both;
+}
+@keyframes slideDown { from { transform: translateY(-60px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(52,211,153,0.15));
+  border: 1px solid rgba(56,189,248,0.3);
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+  animation: iconGlow 4s ease-in-out infinite;
+}
+@keyframes iconGlow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(56,189,248,0.3); }
+  50%      { box-shadow: 0 0 8px 2px rgba(56,189,248,0.15); }
+}
+.brand-name { font-family: var(--font-h); font-size: 16px; font-weight: 800; letter-spacing: 3px; }
+.brand-sub  { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.region-badge {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--blue-dim); border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 11px; color: var(--blue); letter-spacing: 0.5px; font-weight: 500;
+}
+.live-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(52,211,153,0.4); } 50% { opacity:0.7; box-shadow: 0 0 0 4px rgba(52,211,153,0); } }
+#clock { font-family: var(--font-m); font-size: 12px; color: var(--muted); }
+.logout-btn {
+  padding: 6px 14px; background: transparent; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted); font-size: 12px; cursor: pointer;
+  transition: all 0.2s; font-family: var(--font-b);
+}
+.logout-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  animation: slideRight 0.5s 0.1s ease both;
+}
+@keyframes slideRight { from { transform: translateX(-30px); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+.nav-section { padding: 0 16px; margin-bottom: 6px; }
+.nav-label { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; padding: 12px 8px 6px; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--muted); transition: all 0.2s;
+  margin-bottom: 2px;
+}
+.nav-item:hover { background: var(--blue-dim); color: var(--text); }
+.nav-item.active { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(56,189,248,0.15); }
+.nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+.sidebar-footer {
+  position: absolute; bottom: 0; left: 0; width: 220px;
+  padding: 16px; border-top: 1px solid var(--border);
+}
+.user-info { display: flex; align-items: center; gap: 10px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--green));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--bg);
+}
+.user-name { font-size: 13px; font-weight: 500; }
+.user-role { font-size: 11px; color: var(--muted); }
+
+/* ── Main Content ── */
+.main {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
+  animation: fadeIn 0.5s 0.2s ease both;
+}
+@keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+/* ── Page Header ── */
+.page-header { display: flex; align-items: center; justify-content: space-between; }
+.page-title { font-family: var(--font-h); font-size: 22px; font-weight: 700; }
+.page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.header-actions { display: flex; gap: 10px; }
+.action-btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; font-family: var(--font-b);
+  letter-spacing: 0.5px;
+}
+.action-btn.primary { background: var(--blue); color: var(--bg); border: none; }
+.action-btn.primary:hover { box-shadow: 0 4px 16px rgba(56,189,248,0.3); transform: translateY(-1px); }
+.action-btn.danger  { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.action-btn.danger:hover  { background: rgba(248,113,113,0.18); }
+.action-btn.success { background: rgba(52,211,153,0.1); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+.action-btn.success:hover { background: rgba(52,211,153,0.18); }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+/* ── Stat Cards ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative; overflow: hidden;
+  animation: cardReveal 0.5s ease both;
+}
+.stat-card:nth-child(1) { animation-delay: 0.1s; }
+.stat-card:nth-child(2) { animation-delay: 0.15s; }
+.stat-card:nth-child(3) { animation-delay: 0.2s; }
+.stat-card:nth-child(4) { animation-delay: 0.25s; }
+@keyframes cardReveal { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+.stat-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--accent-grad, linear-gradient(90deg, var(--blue), var(--green)));
+  border-radius: 14px 14px 0 0;
+}
+.stat-card.green-accent { --accent-grad: linear-gradient(90deg, #34d399, #059669); }
+.stat-card.amber-accent { --accent-grad: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.stat-card.red-accent   { --accent-grad: linear-gradient(90deg, #f87171, #ef4444); }
+
+.stat-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+.stat-icon { font-size: 20px; }
+.stat-badge { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 600; letter-spacing: 0.5px; }
+.stat-badge.up   { background: rgba(52,211,153,0.12); color: var(--green); }
+.stat-badge.warn { background: rgba(251,191,36,0.12); color: var(--amber); }
+.stat-value { font-family: var(--font-h); font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.stat-label { font-size: 12px; color: var(--muted); }
+
+/* ── Region Status ── */
+.region-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.region-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  animation: cardReveal 0.5s 0.3s ease both;
+}
+.region-card.active-region { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.04); }
+.region-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.region-name { font-family: var(--font-h); font-size: 15px; font-weight: 700; }
+.region-type { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.status-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+}
+.status-chip.healthy  { background: rgba(52,211,153,0.1); color: var(--green); border: 1px solid rgba(52,211,153,0.2); }
+.status-chip.down     { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+.status-chip.standby  { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.2); }
+.status-chip.active   { background: rgba(56,189,248,0.1); color: var(--blue); border: 1px solid rgba(56,189,248,0.2); }
+.status-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+
+.region-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.rm { text-align: center; }
+.rm-val { font-family: var(--font-m); font-size: 15px; font-weight: 500; color: var(--text); }
+.rm-lbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* ── Charts Row ── */
+.charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  animation: cardReveal 0.5s 0.35s ease both;
+}
+.card-title { font-family: var(--font-h); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.card-sub   { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+.chart-wrap { position: relative; height: 160px; }
+
+/* ── Docker & K8s ── */
+.devops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.devops-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  animation: cardReveal 0.5s 0.4s ease both;
+}
+.container-list, .pod-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.container-row, .pod-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  transition: background 0.2s;
+}
+.container-row:hover, .pod-row:hover { background: var(--blue-dim); }
+.c-info { display: flex; flex-direction: column; }
+.c-name { font-family: var(--font-m); font-size: 12px; font-weight: 500; }
+.c-detail { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.c-status {
+  font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 12px; letter-spacing: 0.5px;
+}
+.c-status.running  { background: rgba(52,211,153,0.12); color: var(--green); }
+.c-status.stopped  { background: rgba(248,113,113,0.12); color: var(--red); }
+.c-status.terminating { background: rgba(251,191,36,0.12); color: var(--amber); }
+
+/* ── Activity Log ── */
+.log-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  animation: cardReveal 0.5s 0.45s ease both;
+}
+.log-list { display: flex; flex-direction: column; gap: 0; max-height: 240px; overflow-y: auto; }
+.log-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid rgba(56,189,248,0.05);
+  transition: background 0.2s; border-radius: 4px; padding-left: 8px;
+  animation: logSlide 0.3s ease both;
+}
+@keyframes logSlide { from { opacity:0; transform: translateX(-8px); } to { opacity:1; transform: translateX(0); } }
+.log-time { font-family: var(--font-m); font-size: 10px; color: var(--muted); white-space: nowrap; padding-top: 1px; }
+.log-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.log-badge.INFO     { background: rgba(56,189,248,0.1);  color: var(--blue); }
+.log-badge.WARN     { background: rgba(251,191,36,0.1);  color: var(--amber); }
+.log-badge.CRITICAL { background: rgba(248,113,113,0.15); color: var(--red); }
+.log-badge.SUCCESS  { background: rgba(52,211,153,0.1);  color: var(--green); }
+.log-msg { font-size: 12px; color: var(--text); flex: 1; }
+
+/* ── Bottom Row ── */
+.bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ── Failover Panel ── */
+.failover-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px;
+  animation: cardReveal 0.5s 0.5s ease both;
+}
+.failover-status {
+  display: flex; align-items: center; gap: 14px; padding: 16px;
+  background: var(--surface2); border-radius: 10px; margin-bottom: 20px;
+}
+.failover-icon { font-size: 28px; }
+.failover-info .f-title { font-family: var(--font-h); font-size: 14px; font-weight: 700; }
+.failover-info .f-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.failover-actions { display: flex; gap: 10px; }
+.failover-actions .action-btn { flex: 1; text-align: center; padding: 11px; }
+
+/* ── Terraform Card ── */
+.tf-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
+  animation: cardReveal 0.5s 0.5s ease both;
+}
+.tf-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.tf-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; background: var(--surface2); border-radius: 8px;
+}
+.tf-name { font-family: var(--font-m); font-size: 12px; }
+.tf-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+.tf-chip.applied  { background: rgba(52,211,153,0.1); color: var(--green); }
+.tf-chip.planned  { background: rgba(251,191,36,0.1); color: var(--amber); }
+.tf-chip.pending  { background: rgba(100,116,139,0.15); color: var(--muted); }
+
+/* ── Notification toast ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 999;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  max-width: 320px;
+}
+.toast.show { transform: translateX(0); }
+.toast-icon { font-size: 18px; }
+.toast-text { font-size: 13px; }
+.toast-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-name">AEGIS</div>
+        <div class="brand-sub">Infrastructure Control</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="region-badge"><div class="live-dot"></div><span id="activeRegionLabel">us-east-1 Active</span></div>
+      <span id="clock"></span>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active"><span class="nav-icon">📊</span>Dashboard</div>
+      <div class="nav-item"><span class="nav-icon">🌐</span>Regions</div>
+      <div class="nav-item"><span class="nav-icon">🔁</span>Failover</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">DevOps</div>
+      <div class="nav-item"><span class="nav-icon">🐳</span>Docker</div>
+      <div class="nav-item"><span class="nav-icon">☸️</span>Kubernetes</div>
+      <div class="nav-item"><span class="nav-icon">🏗️</span>Terraform</div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Monitoring</div>
+      <div class="nav-item"><span class="nav-icon">📈</span>Prometheus</div>
+      <div class="nav-item"><span class="nav-icon">📉</span>Grafana</div>
+      <div class="nav-item"><span class="nav-icon">📋</span>Logs</div>
+    </div>
+    <div class="nav-section" style="margin-top:auto;">
+      <div class="nav-label">Account</div>
+      <div class="nav-item"><span class="nav-icon">⚙️</span>Settings</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">Infrastructure Overview</div>
+        <div class="page-sub">Real-time multi-region AWS status · Auto-refreshes every 3s</div>
+      </div>
+      <div class="header-actions">
+        <button class="action-btn danger"   id="failBtn"    onclick="triggerFailover()">⚡ Simulate Failure</button>
+        <button class="action-btn success"  id="recoverBtn" onclick="recoverPrimary()" disabled>↩ Restore Primary</button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-icon">⏱️</span>
+          <span class="stat-badge up" id="uptimeBadge">LIVE</span>
+        </div>
+        <div class="stat-value" id="uptimeVal">—</div>
+        <div class="stat-label">System Uptime</div>
+      </div>
+      <div class="stat-card green-accent">
+        <div class="stat-header">
+          <span class="stat-icon">👥</span>
+          <span class="stat-badge up">ACTIVE</span>
+        </div>
+        <div class="stat-value" id="usersVal">—</div>
+        <div class="stat-label">Active Users</div>
+      </div>
+      <div class="stat-card amber-accent">
+        <div class="stat-header">
+          <span class="stat-icon">📡</span>
+          <span class="stat-badge up">TOTAL</span>
+        </div>
+        <div class="stat-value" id="reqVal">—</div>
+        <div class="stat-label">HTTP Requests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-icon">🧠</span>
+          <span class="stat-badge up">MB</span>
+        </div>
+        <div class="stat-value" id="memVal">—</div>
+        <div class="stat-label">Memory Used</div>
+      </div>
+    </div>
+
+    <!-- Region Status -->
+    <div class="region-grid">
+      <div class="region-card" id="primaryCard">
+        <div class="region-header">
+          <div>
+            <div class="region-name">us-east-1 · N. Virginia</div>
+            <div class="region-type">PRIMARY REGION</div>
+          </div>
+          <div class="status-chip healthy" id="primaryChip">
+            <div class="chip-dot"></div>
+            <span id="primaryStatusTxt">HEALTHY</span>
+          </div>
+        </div>
+        <div class="region-metrics">
+          <div class="rm"><div class="rm-val" id="cpuPrimary">—</div><div class="rm-lbl">CPU Load</div></div>
+          <div class="rm"><div class="rm-val" id="memPrimary">—</div><div class="rm-lbl">Memory</div></div>
+          <div class="rm"><div class="rm-val" id="failoverCount">0</div><div class="rm-lbl">Failovers</div></div>
+        </div>
+      </div>
+      <div class="region-card" id="secondaryCard">
+        <div class="region-header">
+          <div>
+            <div class="region-name">ap-south-1 · Mumbai</div>
+            <div class="region-type">SECONDARY REGION</div>
+          </div>
+          <div class="status-chip standby" id="secondaryChip">
+            <div class="chip-dot"></div>
+            <span id="secondaryStatusTxt">STANDBY</span>
+          </div>
+        </div>
+        <div class="region-metrics">
+          <div class="rm"><div class="rm-val">—</div><div class="rm-lbl">CPU Load</div></div>
+          <div class="rm"><div class="rm-val">—</div><div class="rm-lbl">Memory</div></div>
+          <div class="rm"><div class="rm-val" id="dnsStatus">Route 53</div><div class="rm-lbl">DNS</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="card-title">Request Traffic</div>
+        <div class="card-sub">HTTP requests per interval · both regions</div>
+        <div class="chart-wrap"><canvas id="trafficChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">CPU Load Average</div>
+        <div class="card-sub">1-minute rolling average</div>
+        <div class="chart-wrap"><canvas id="cpuChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Docker + K8s -->
+    <div class="devops-grid">
+      <div class="devops-card">
+        <div class="card-title">🐳 Docker Containers</div>
+        <div class="card-sub">Running containers across regions</div>
+        <div class="container-list" id="containerList">
+          <div style="color:var(--muted);font-size:12px;padding:10px 0;">Loading…</div>
+        </div>
+      </div>
+      <div class="devops-card">
+        <div class="card-title">☸️ Kubernetes Pods</div>
+        <div class="card-sub">Pod status in cluster</div>
+        <div class="pod-list" id="podList">
+          <div style="color:var(--muted);font-size:12px;padding:10px 0;">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity + Failover + Terraform -->
+    <div class="log-card">
+      <div class="card-title">Activity Log</div>
+      <div class="card-sub">Real-time infrastructure events</div>
+      <div class="log-list" id="logList"></div>
+    </div>
+
+    <div class="bottom-row">
+      <div class="failover-card">
+        <div class="card-title" style="margin-bottom:14px;">Failover Control</div>
+        <div class="failover-status" id="failoverStatus">
+          <div class="failover-icon">🟢</div>
+          <div class="failover-info">
+            <div class="f-title">Primary Region Active</div>
+            <div class="f-sub" id="failoverSub">us-east-1 serving all traffic · Route 53 routing: PRIMARY</div>
+          </div>
+        </div>
+        <div class="failover-actions">
+          <button class="action-btn danger"   id="failBtn2"    onclick="triggerFailover()">⚡ Simulate Failure</button>
+          <button class="action-btn success"  id="recoverBtn2" onclick="recoverPrimary()" disabled>↩ Restore Primary</button>
+        </div>
+      </div>
+
+      <div class="tf-card">
+        <div class="card-title">🏗️ Terraform State</div>
+        <div class="card-sub">Infrastructure as Code — resource status</div>
+        <div class="tf-list">
+          <div class="tf-item"><span class="tf-name">aws_vpc.primary</span><span class="tf-chip applied">applied</span></div>
+          <div class="tf-item"><span class="tf-name">aws_vpc.secondary</span><span class="tf-chip applied">applied</span></div>
+          <div class="tf-item"><span class="tf-name">aws_instance.primary_ec2</span><span class="tf-chip applied">applied</span></div>
+          <div class="tf-item"><span class="tf-name">aws_instance.secondary_ec2</span><span class="tf-chip applied">applied</span></div>
+          <div class="tf-item"><span class="tf-name">aws_route53_health_check</span><span class="tf-chip applied">applied</span></div>
+          <div class="tf-item"><span class="tf-name">aws_eks_cluster.primary</span><span class="tf-chip planned">planned</span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon" id="toastIcon">⚡</div>
+  <div><div class="toast-text" id="toastText">Action performed</div><div class="toast-sub" id="toastSub"></div></div>
+</div>
+
+<script>
+// ── Charts Setup ──────────────────────────────────────────────────────────────
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { display: false },
+    y: { display: true, grid: { color: 'rgba(56,189,248,0.06)' },
+         ticks: { color: '#64748b', font: { size: 10, family: 'DM Mono' } } }
+  },
+  elements: { point: { radius: 0 }, line: { tension: 0.4 } },
+  animation: { duration: 300 }
+};
+
+const trafficCtx = document.getElementById('trafficChart').getContext('2d');
+const trafficGrad = trafficCtx.createLinearGradient(0, 0, 0, 160);
+trafficGrad.addColorStop(0, 'rgba(56,189,248,0.25)');
+trafficGrad.addColorStop(1, 'rgba(56,189,248,0)');
+
+const trafficChart = new Chart(trafficCtx, {
+  type: 'line',
+  data: { labels: Array(30).fill(''), datasets: [{
+    data: Array(30).fill(0),
+    borderColor: '#38bdf8', borderWidth: 2,
+    backgroundColor: trafficGrad, fill: true
+  }]},
+  options: { ...chartDefaults }
+});
+
+const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+const cpuGrad = cpuCtx.createLinearGradient(0, 0, 0, 160);
+cpuGrad.addColorStop(0, 'rgba(52,211,153,0.2)');
+cpuGrad.addColorStop(1, 'rgba(52,211,153,0)');
+
+const cpuChart = new Chart(cpuCtx, {
+  type: 'line',
+  data: { labels: Array(30).fill(''), datasets: [{
+    data: Array(30).fill(0),
+    borderColor: '#34d399', borderWidth: 2,
+    backgroundColor: cpuGrad, fill: true
+  }]},
+  options: { ...chartDefaults }
+});
+
+// ── Clock ─────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false });
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── Format uptime ─────────────────────────────────────────────────────────────
+function fmtUptime(s) {
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+// ── Fetch Stats ───────────────────────────────────────────────────────────────
+async function fetchStats() {
+  try {
+    const r = await fetch('/api/stats');
+    if (r.status === 401) { window.location.href = '/'; return; }
+    const d = await r.json();
+
+    document.getElementById('uptimeVal').textContent = fmtUptime(d.uptime);
+    document.getElementById('usersVal').textContent  = d.activeUsers;
+    document.getElementById('reqVal').textContent    = d.requestCount;
+    document.getElementById('memVal').textContent    = d.memory.used + ' MB';
+    document.getElementById('cpuPrimary').textContent  = d.cpu;
+    document.getElementById('memPrimary').textContent  = d.memory.used + 'MB';
+    document.getElementById('failoverCount').textContent = d.failoverCount;
+
+    // Region status
+    const pChip = document.getElementById('primaryChip');
+    const sTxt  = document.getElementById('primaryStatusTxt');
+    const pCard = document.getElementById('primaryCard');
+    if (d.primaryStatus === 'down') {
+      pChip.className = 'status-chip down'; sTxt.textContent = 'DOWN';
+      pCard.style.borderColor = 'rgba(248,113,113,0.3)';
+      document.getElementById('failoverStatus').querySelector('.failover-icon').textContent = '🔴';
+      document.getElementById('failoverStatus').querySelector('.f-title').textContent = 'FAILOVER ACTIVE';
+      document.getElementById('failoverSub').textContent = 'ap-south-1 serving all traffic · Route 53 routing: SECONDARY';
+      document.getElementById('dnsStatus').textContent = 'ACTIVE';
+      document.getElementById('activeRegionLabel').textContent = 'ap-south-1 Active';
+    } else {
+      pChip.className = 'status-chip healthy'; sTxt.textContent = 'HEALTHY';
+      pCard.style.borderColor = '';
+      document.getElementById('failoverStatus').querySelector('.failover-icon').textContent = '🟢';
+      document.getElementById('failoverStatus').querySelector('.f-title').textContent = 'Primary Region Active';
+      document.getElementById('failoverSub').textContent = 'us-east-1 serving all traffic · Route 53 routing: PRIMARY';
+      document.getElementById('dnsStatus').textContent = 'Route 53';
+      document.getElementById('activeRegionLabel').textContent = 'us-east-1 Active';
+    }
+
+    const sChip = document.getElementById('secondaryChip');
+    const ssTxt = document.getElementById('secondaryStatusTxt');
+    if (d.secondaryStatus === 'active') {
+      sChip.className = 'status-chip active'; ssTxt.textContent = 'ACTIVE';
+      document.getElementById('secondaryCard').classList.add('active-region');
+    } else {
+      sChip.className = 'status-chip standby'; ssTxt.textContent = 'STANDBY';
+      document.getElementById('secondaryCard').classList.remove('active-region');
+    }
+
+    // Charts
+    if (d.trafficHistory && d.trafficHistory.length) {
+      trafficChart.data.labels = d.trafficHistory.map(()=>'');
+      trafficChart.data.datasets[0].data = d.trafficHistory.map(p=>p.v);
+      trafficChart.update('none');
+    }
+    if (d.cpuHistory && d.cpuHistory.length) {
+      cpuChart.data.labels = d.cpuHistory.map(()=>'');
+      cpuChart.data.datasets[0].data = d.cpuHistory.map(p=>p.v);
+      cpuChart.update('none');
+    }
+  } catch(e) { console.error('Stats fetch error', e); }
+}
+
+// ── Fetch Activity Log ────────────────────────────────────────────────────────
+async function fetchActivity() {
+  try {
+    const r = await fetch('/api/activity');
+    const d = await r.json();
+    const list = document.getElementById('logList');
+    list.innerHTML = d.logs.map(l => {
+      const t = new Date(l.time).toLocaleTimeString('en-US',{hour12:false});
+      return `<div class="log-item">
+        <span class="log-time">${t}</span>
+        <span class="log-badge ${l.level}">${l.level}</span>
+        <span class="log-msg">${l.message}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// ── Fetch Containers ─────────────────────────────────────────────────────────
+async function fetchContainers() {
+  try {
+    const r = await fetch('/api/containers');
+    const d = await r.json();
+    document.getElementById('containerList').innerHTML = d.containers.map(c=>`
+      <div class="container-row">
+        <div class="c-info">
+          <span class="c-name">${c.name}</span>
+          <span class="c-detail">ID: ${c.id} · Port: ${c.port} · ${c.region}</span>
+        </div>
+        <span class="c-status ${c.status}">${c.status.toUpperCase()}</span>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+// ── Fetch Pods ────────────────────────────────────────────────────────────────
+async function fetchPods() {
+  try {
+    const r = await fetch('/api/pods');
+    const d = await r.json();
+    document.getElementById('podList').innerHTML = d.pods.map(p=>`
+      <div class="pod-row">
+        <div class="c-info">
+          <span class="c-name">${p.name}</span>
+          <span class="c-detail">Node: ${p.node} · Restarts: ${p.restarts} · Age: ${p.age}</span>
+        </div>
+        <span class="c-status ${p.status==='Running'?'running':p.status==='Terminating'?'terminating':'stopped'}">${p.status.toUpperCase()}</span>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+// ── Failover Actions ──────────────────────────────────────────────────────────
+async function triggerFailover() {
+  const r = await fetch('/api/failover', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action:'trigger'})
+  });
+  const d = await r.json();
+  if (d.success) {
+    setBtns(true);
+    showToast('🔴','Failover Triggered','Traffic rerouting to ap-south-1');
+    fetchStats(); fetchActivity();
+  }
+}
+
+async function recoverPrimary() {
+  const r = await fetch('/api/failover', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action:'recover'})
+  });
+  const d = await r.json();
+  if (d.success) {
+    setBtns(false);
+    showToast('🟢','Self-Healing Complete','us-east-1 restored as primary');
+    fetchStats(); fetchActivity();
+  }
+}
+
+function setBtns(failoverActive) {
+  ['failBtn','failBtn2'].forEach(id => document.getElementById(id).disabled = failoverActive);
+  ['recoverBtn','recoverBtn2'].forEach(id => document.getElementById(id).disabled = !failoverActive);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(icon, text, sub) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastText').textContent = text;
+  document.getElementById('toastSub').textContent  = sub;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+async function doLogout() {
+  await fetch('/logout', { method:'POST' });
+  window.location.href = '/';
+}
+
+// ── Poll ──────────────────────────────────────────────────────────────────────
+fetchStats(); fetchActivity(); fetchContainers(); fetchPods();
+setInterval(fetchStats,    3000);
+setInterval(fetchActivity, 5000);
+setInterval(fetchContainers, 8000);
+setInterval(fetchPods,       8000);
+</script>
+</body>
+</html>

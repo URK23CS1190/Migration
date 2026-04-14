@@ -1,0 +1,80 @@
+# .github/workflows/deploy.yml
+# Automatically builds Docker image and deploys to both EC2s on every push to main
+
+name: AEGIS — CI/CD Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # ── 1. Checkout code ──────────────────────────────────────────────────────
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # ── 2. Login to Docker Hub ────────────────────────────────────────────────
+    - name: Docker Hub Login
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    # ── 3. Build & Push Docker Image ─────────────────────────────────────────
+    - name: Build and Push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:latest
+          ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:${{ github.sha }}
+
+    # ── 4. Deploy to Primary EC2 (us-east-1) ─────────────────────────────────
+    - name: Deploy to Primary EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host:     ${{ secrets.PRIMARY_EC2_IP }}
+        username: ubuntu
+        key:      ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:latest
+          docker stop aegis-app || true
+          docker rm   aegis-app || true
+          docker run -d --name aegis-app --restart always \
+            -p 3000:3000 \
+            -e REGION=us-east-1 \
+            -e NODE_ENV=production \
+            ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:latest
+          docker system prune -f
+
+    # ── 5. Deploy to Secondary EC2 (ap-south-1) ───────────────────────────────
+    - name: Deploy to Secondary EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host:     ${{ secrets.SECONDARY_EC2_IP }}
+        username: ubuntu
+        key:      ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:latest
+          docker stop aegis-app || true
+          docker rm   aegis-app || true
+          docker run -d --name aegis-app --restart always \
+            -p 3000:3000 \
+            -e REGION=ap-south-1 \
+            -e NODE_ENV=production \
+            ${{ secrets.DOCKERHUB_USERNAME }}/aegis-cloud:latest
+          docker system prune -f
+
+    # ── 6. Health Check ───────────────────────────────────────────────────────
+    - name: Verify Deployments
+      run: |
+        sleep 15
+        echo "Checking Primary..."
+        curl -f http://${{ secrets.PRIMARY_EC2_IP }}:3000/health || exit 1
+        echo "Checking Secondary..."
+        curl -f http://${{ secrets.SECONDARY_EC2_IP }}:3000/health || exit 1
+        echo "Both regions healthy!"

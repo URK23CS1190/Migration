@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — Cloud Control</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:        #050a0f;
+    --surface:   #0c1620;
+    --border:    rgba(56,189,248,0.12);
+    --blue:      #38bdf8;
+    --blue-dim:  rgba(56,189,248,0.15);
+    --green:     #34d399;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --card:      rgba(12,22,32,0.85);
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Animated Background ── */
+  .bg-canvas {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(56,189,248,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 90%, rgba(52,211,153,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 60% at 50% 50%, rgba(56,189,248,0.03) 0%, transparent 70%);
+  }
+
+  /* Grid overlay */
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    animation: gridShift 20s linear infinite;
+  }
+  @keyframes gridShift {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(48px); }
+  }
+
+  /* Floating orbs */
+  .orb {
+    position: fixed; border-radius: 50%; filter: blur(80px); z-index: 0;
+    animation: orbFloat 12s ease-in-out infinite alternate;
+  }
+  .orb-1 { width: 400px; height: 400px; top: -100px; left: -100px; background: rgba(56,189,248,0.06); animation-delay: 0s; }
+  .orb-2 { width: 300px; height: 300px; bottom: -80px; right: -80px; background: rgba(52,211,153,0.05); animation-delay: -4s; }
+  .orb-3 { width: 200px; height: 200px; top: 50%; left: 60%; background: rgba(56,189,248,0.04); animation-delay: -8s; }
+  @keyframes orbFloat {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, 20px) scale(1.1); }
+  }
+
+  /* Floating particles */
+  .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .particle {
+    position: absolute; width: 2px; height: 2px;
+    background: var(--blue); border-radius: 50%;
+    animation: particleRise linear infinite;
+    opacity: 0;
+  }
+  @keyframes particleRise {
+    0%   { transform: translateY(0) translateX(0); opacity: 0; }
+    10%  { opacity: 0.6; }
+    90%  { opacity: 0.3; }
+    100% { transform: translateY(-100vh) translateX(40px); opacity: 0; }
+  }
+
+  /* ── Login Card ── */
+  .card {
+    position: relative; z-index: 10;
+    width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px 40px;
+    backdrop-filter: blur(20px);
+    box-shadow:
+      0 0 0 1px rgba(56,189,248,0.05),
+      0 40px 80px rgba(0,0,0,0.6),
+      0 0 60px rgba(56,189,248,0.04),
+      inset 0 1px 0 rgba(56,189,248,0.08);
+    animation: cardReveal 0.8s cubic-bezier(0.16,1,0.3,1) both;
+  }
+  @keyframes cardReveal {
+    from { opacity: 0; transform: translateY(32px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* Top accent line */
+  .card::before {
+    content: '';
+    position: absolute; top: -1px; left: 40px; right: 40px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--blue), transparent);
+    border-radius: 2px;
+    animation: lineGlow 3s ease-in-out infinite;
+  }
+  @keyframes lineGlow {
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 1; }
+  }
+
+  /* ── Logo area ── */
+  .logo-wrap {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 10px;
+    animation: fadeDown 0.6s 0.2s both;
+  }
+  @keyframes fadeDown { from { opacity:0; transform: translateY(-12px);} to { opacity:1; transform: translateY(0);} }
+
+  .logo-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(52,211,153,0.15));
+    border: 1px solid rgba(56,189,248,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    animation: iconPulse 4s ease-in-out infinite;
+  }
+  @keyframes iconPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(56,189,248,0.2); }
+    50%      { box-shadow: 0 0 0 8px rgba(56,189,248,0); }
+  }
+
+  .logo-text { display: flex; flex-direction: column; }
+  .logo-name {
+    font-family: var(--font-head);
+    font-size: 22px; font-weight: 800; letter-spacing: 3px;
+    color: var(--text);
+  }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+  /* Status pill */
+  .status-pill {
+    margin-bottom: 28px;
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 20px; padding: 5px 12px;
+    animation: fadeDown 0.6s 0.35s both;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    animation: dotPulse 2s ease-in-out infinite;
+  }
+  @keyframes dotPulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(0.8); }
+  }
+  .status-text { font-size: 11px; color: var(--green); letter-spacing: 1px; text-transform: uppercase; font-weight: 500; }
+
+  /* Headings */
+  h1 {
+    font-family: var(--font-head);
+    font-size: 26px; font-weight: 700; letter-spacing: -0.3px;
+    color: var(--text); margin-bottom: 6px;
+    animation: fadeDown 0.6s 0.4s both;
+  }
+  .subtitle {
+    font-size: 13px; color: var(--muted); margin-bottom: 36px;
+    animation: fadeDown 0.6s 0.45s both;
+  }
+
+  /* Form */
+  .field { margin-bottom: 18px; animation: fadeDown 0.6s both; }
+  .field:nth-child(1) { animation-delay: 0.5s; }
+  .field:nth-child(2) { animation-delay: 0.55s; }
+
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+
+  .input-wrap { position: relative; }
+  .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; opacity: 0.4; pointer-events: none; }
+
+  input {
+    width: 100%; padding: 13px 14px 13px 42px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(56,189,248,0.12);
+    border-radius: 10px;
+    color: var(--text); font-family: var(--font-body); font-size: 14px;
+    outline: none; transition: all 0.25s;
+  }
+  input:focus {
+    border-color: rgba(56,189,248,0.5);
+    background: rgba(56,189,248,0.04);
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.08);
+  }
+  input::placeholder { color: var(--muted); }
+
+  /* Button */
+  .btn {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    border: none; border-radius: 10px;
+    color: #050a0f; font-family: var(--font-head); font-size: 14px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+    margin-top: 8px;
+    animation: fadeDown 0.6s 0.6s both;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(56,189,248,0.3); }
+  .btn:active { transform: translateY(0); }
+  .btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.15));
+  }
+
+  /* Shimmer on button */
+  .btn::before {
+    content: '';
+    position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: shimmer 3s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%   { left: -100%; }
+    50%  { left: 150%; }
+    100% { left: 150%; }
+  }
+
+  /* Error */
+  .error-msg {
+    display: none; margin-top: 14px; padding: 11px 14px;
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px; color: #fca5a5; font-size: 13px; text-align: center;
+    animation: fadeDown 0.3s both;
+  }
+
+  /* Footer info */
+  .card-footer {
+    margin-top: 28px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    animation: fadeDown 0.6s 0.7s both;
+  }
+  .cred-hint { font-size: 11px; color: var(--muted); }
+  .cred-hint span { color: var(--blue); font-weight: 500; }
+  .version-badge {
+    font-size: 10px; color: var(--muted); background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px;
+  }
+
+  /* Loading overlay */
+  .loading { display: none; }
+  .loading.show { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .spinner {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid rgba(56,189,248,0.15);
+    border-top-color: var(--blue);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+<div class="bg-grid"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="particles" id="particles"></div>
+
+<div class="card" id="loginCard">
+  <div class="logo-wrap">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">
+      <span class="logo-name">AEGIS</span>
+      <span class="logo-sub">Cloud Control System</span>
+    </div>
+  </div>
+
+  <div class="status-pill">
+    <div class="status-dot"></div>
+    <span class="status-text">All Systems Operational</span>
+  </div>
+
+  <h1>Welcome back</h1>
+  <p class="subtitle">Authenticate to access the infrastructure dashboard</p>
+
+  <div class="field">
+    <label>Username</label>
+    <div class="input-wrap">
+      <span class="input-icon">👤</span>
+      <input type="text" id="username" placeholder="Enter username" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <div class="input-wrap">
+      <span class="input-icon">🔑</span>
+      <input type="password" id="password" placeholder="Enter password">
+    </div>
+  </div>
+
+  <button class="btn" id="loginBtn" onclick="doLogin()">Authenticate</button>
+  <div class="error-msg" id="errorMsg">Invalid credentials. Please try again.</div>
+
+  <div class="card-footer">
+    <div class="cred-hint">Use <span>admin</span> / <span>cloud123</span></div>
+    <span class="version-badge">v2.0.0</span>
+  </div>
+</div>
+
+<script>
+  // Generate particles
+  const pc = document.getElementById('particles');
+  for (let i = 0; i < 25; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.bottom = '-10px';
+    p.style.animationDuration = (8 + Math.random() * 12) + 's';
+    p.style.animationDelay = (Math.random() * 15) + 's';
+    p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+    p.style.opacity = Math.random() * 0.5;
+    pc.appendChild(p);
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  async function doLogin() {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn');
+    const err = document.getElementById('errorMsg');
+
+    if (!u || !p) { showError('Please enter both username and password.'); return; }
+    err.style.display = 'none';
+    btn.textContent = 'Authenticating…';
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const d = await r.json();
+      if (d.success) {
+        btn.textContent = '✓ Authenticated';
+        btn.style.background = 'linear-gradient(135deg,#059669,#34d399)';
+        setTimeout(() => { window.location.href = '/dashboard'; }, 600);
+      } else {
+        showError(d.message || 'Invalid credentials.');
+        btn.textContent = 'Authenticate'; btn.disabled = false;
+      }
+    } catch {
+      showError('Server unreachable. Please try again.');
+      btn.textContent = 'Authenticate'; btn.disabled = false;
+    }
+  }
+
+  function showError(msg) {
+    const e = document.getElementById('errorMsg');
+    e.textContent = msg; e.style.display = 'block';
+    const card = document.getElementById('loginCard');
+    card.style.animation = 'none';
+    card.style.transform = 'translateX(-6px)';
+    setTimeout(() => { card.style.transform = 'translateX(6px)'; }, 80);
+    setTimeout(() => { card.style.transform = 'translateX(0)'; }, 160);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+# docker-compose.yml — Run Prometheus + Grafana locally for development
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+
+  aegis-app:
+    build: .
+    container_name: aegis-app
+    ports:
+      - "3000:3000"
+    environment:
+      - REGION=us-east-1
+      - NODE_ENV=development
+    restart: unless-stopped
+    networks: [aegis-net]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    networks: [aegis-net]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    restart: unless-stopped
+    networks: [aegis-net]
+    depends_on: [prometheus]
+
+networks:
+  aegis-net:
+    driver: bridge
+
+volumes:
+  grafana-storage:
