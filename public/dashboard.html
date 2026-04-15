@@ -643,6 +643,68 @@ async function fetchStats() {
     }
   } catch(e) { console.error('Stats fetch error', e); }
 }
+// ── Fetch Real Prometheus Metrics ────────────────────────────────────────────
+async function fetchPrometheusMetrics() {
+  try {
+    // CPU usage
+    const cpuRes = await fetch('/api/prometheus?query=' +
+      encodeURIComponent('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'));
+    const cpuData = await cpuRes.json();
+    if (cpuData.data?.result?.length > 0) {
+      const cpuVal = parseFloat(cpuData.data.result[0].value[1]).toFixed(1);
+      document.getElementById('cpuLoad').textContent = cpuVal + '%';
+    }
+
+    // Memory usage
+    const memRes = await fetch('/api/prometheus?query=' +
+      encodeURIComponent('(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024'));
+    const memData = await memRes.json();
+    if (memData.data?.result?.length > 0) {
+      const memVal = parseFloat(memData.data.result[0].value[1]).toFixed(0);
+      document.getElementById('metMemory').textContent = memVal + 'MB';
+    }
+
+    // Network traffic
+    const netRes = await fetch('/api/prometheus?query=' +
+      encodeURIComponent('rate(node_network_receive_bytes_total{device="eth0"}[1m])'));
+    const netData = await netRes.json();
+    if (netData.data?.result?.length > 0) {
+      const netKB = (parseFloat(netData.data.result[0].value[1]) / 1024).toFixed(1);
+      document.getElementById('metUptimeSub').textContent = 'Network in: ' + netKB + ' KB/s';
+    }
+
+  } catch (e) {
+    console.warn('Prometheus metrics unavailable:', e.message);
+  }
+}
+
+// ── Fetch Real CPU Chart from Prometheus range ────────────────────────────────
+async function fetchPrometheusChart() {
+  try {
+    const end   = Math.floor(Date.now() / 1000);
+    const start = end - 1800; // last 30 minutes
+    const res   = await fetch(`/api/prometheus/range?query=${
+      encodeURIComponent('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)')
+    }&start=${start}&end=${end}&step=60`);
+    const data  = await res.json();
+
+    if (data.data?.result?.length > 0) {
+      const points = data.data.result[0].values;
+      const labels = points.map(p => {
+        const d = new Date(p[0] * 1000);
+        return d.getHours() + ':' + String(d.getMinutes()).padStart(2,'0');
+      });
+      const values = points.map(p => parseFloat(p[1]).toFixed(2));
+
+      trafficChart.data.labels   = labels;
+      trafficChart.data.datasets[0].data  = values;
+      trafficChart.data.datasets[0].label = 'CPU % (Real)';
+      trafficChart.update('none');
+    }
+  } catch (e) {
+    console.warn('Chart data unavailable:', e.message);
+  }
+}
 
 // ── Fetch Activity Log ────────────────────────────────────────────────────────
 async function fetchActivity() {
@@ -740,13 +802,36 @@ async function doLogout() {
   await fetch('/logout', { method:'POST' });
   window.location.href = '/';
 }
+async function fetchLogs() {
+  try {
+    // Try Grafana/Loki first
+    const grafana = await fetch('/api/grafana/logs?limit=20');
+    if (grafana.ok) {
+      const { logs } = await grafana.json();
+      if (logs.length > 0) {
+        renderLogs(logs); // use real Loki logs
+        return;
+      }
+    }
+  } catch (_) {}
+
+  // Fallback to your existing /api/logs
+  const res  = await fetch('/api/logs');
+  const data = await res.json();
+  renderLogs(data.logs);
+}
 
 // ── Poll ──────────────────────────────────────────────────────────────────────
-fetchStats(); fetchActivity(); fetchContainers(); fetchPods();
-setInterval(fetchStats,    3000);
-setInterval(fetchActivity, 5000);
-setInterval(fetchContainers, 8000);
-setInterval(fetchPods,       8000);
+// ── Init & Polling ────────────────────────────────────────────────────────
+fetchStats();
+fetchLogs();
+fetchPrometheusMetrics();
+fetchPrometheusChart();
+
+setInterval(fetchStats,             3000);
+setInterval(fetchLogs,              5000);
+setInterval(fetchPrometheusMetrics, 15000);  // real CPU/memory every 15s
+setInterval(fetchPrometheusChart,   60000);  // real chart every 1 min
 </script>
 </body>
 </html>
